@@ -197,4 +197,4 @@ If Megatech Photos shuts down, your encrypted files remain decryptable using you
 - Only your device can decrypt your data  
 
 **Only you can see your files.**
-```
+
