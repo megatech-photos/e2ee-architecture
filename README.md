@@ -32,9 +32,7 @@ Only encrypted data and encrypted keys are stored on our servers.
 Data flow:
 
 ```
-
 Client → Encrypt → Upload ciphertext → Store → Download → Decrypt → Client
-
 ```
 
 ---
