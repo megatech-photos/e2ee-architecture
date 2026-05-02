@@ -1,6 +1,5 @@
 # Megatech Photos Cryptography Specification
 **Version:** v1.0  
-**Status:** Draft  
 **Last updated:** May 2, 2026  
 
 ---
