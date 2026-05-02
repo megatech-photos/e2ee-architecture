@@ -1,6 +1,13 @@
-# How end-to-end encryption works
+# Megatech Photos Cryptography Specification
+**Version:** v1.0  
+**Status:** Draft  
+**Last updated:** 2026  
 
-**Megatech Photos uses end-to-end encryption.**
+---
+
+## Overview
+
+Megatech Photos uses end-to-end encryption.
 
 Your data is encrypted on your device before it leaves it, using keys that only you control.
 
@@ -18,29 +25,49 @@ All encryption keys are derived or generated on your device and never leave your
 
 Only encrypted data and encrypted keys are stored on our servers.
 
-![E2EE Architecture Diagram](https://assets.codepen.io/9358497/architecture_diagram.png)
+<p align="center">
+  <img src="https://assets.codepen.io/9358497/architecture_diagram.png" width="450">
+</p>
+
+Data flow:
+
+```
+
+Client → Encrypt → Upload ciphertext → Store → Download → Decrypt → Client
+
+```
 
 ---
 
-## Key encryption
+## Cryptographic Primitives
+
+| Purpose          | Algorithm              |
+|-----------------|------------------------|
+| File encryption | AES-256-GCM            |
+| Key derivation  | PBKDF2 (SHA-256)       |
+| Randomness      | crypto.getRandomValues |
+
+---
+
+## Key Encryption
 
 ### Fundamentals
 
-#### Master key
+#### Master Key
 
-When you create an account, your client generates a random 256-bit `AES-GCM` key.
+When you create an account, your client generates a random 256-bit `AES-GCM` key using `crypto.subtle.generateKey`.
 
 This master key is used to encrypt all your files.
 
 This key never leaves your device unencrypted.
 
-#### Key derivation (wrapping key)
+#### Key Derivation (Wrapping Key)
 
 Your password is used to derive a key using `PBKDF2`:
 
-- `PBKDF2` with `SHA-256`
-- 600,000 iterations
-- 32-byte random salt
+- `PBKDF2` with `SHA-256`  
+- 600,000 iterations  
+- 32-byte random salt  
 
 This derived key (wrapping key) is used to encrypt your master key.
 
@@ -48,21 +75,27 @@ This derived key (wrapping key) is used to encrypt your master key.
 
 ### Flows
 
-#### Primary device
+#### Primary Device (Registration)
 
-- Generate master key via `crypto.subtle.generateKey`
-- Derive wrapping key via `crypto.subtle.deriveKey`
-- Encrypt master key using `crypto.subtle.encrypt`
+1. Generate master key  
+2. Derive wrapping key from password using `crypto.subtle.deriveKey`  
+3. Encrypt master key using `crypto.subtle.encrypt`  
+4. Upload:
+   - Encrypted master key  
+   - Salt  
+   - IV  
 
-#### Secondary device
+#### Secondary Device (Login)
 
-- Download encrypted master key
-- Derive wrapping key again from password
-- Decrypt master key locally
+1. Download encrypted master key  
+2. Derive wrapping key again from password  
+3. Decrypt master key locally using `crypto.subtle.decrypt`  
+
+If decryption fails, the password is incorrect.
 
 ---
 
-### Privacy properties
+### Security Properties
 
 - Only your password can derive the wrapping key  
 - Only the wrapping key can decrypt the master key  
@@ -70,75 +103,84 @@ This derived key (wrapping key) is used to encrypt your master key.
 
 ---
 
-## File encryption
+## File Encryption
 
-### Upload flow
+### Upload Flow
 
-- Generate IV via `crypto.getRandomValues`
-- Read file into `ArrayBuffer`
-- Encrypt using `AES-256-GCM`
-- Upload ciphertext
+1. Generate IV using `crypto.getRandomValues`  
+2. Read file into memory (`ArrayBuffer`)  
+3. Encrypt using `AES-256-GCM` via `crypto.subtle.encrypt`  
+4. Upload ciphertext  
 
-### Download flow
+### Download Flow
 
-- Download ciphertext
-- Restore master key
-- Decrypt via `crypto.subtle.decrypt`
-
----
-
-### Security properties
-
-- Unique IV per file  
-- `AES-GCM` provides integrity + confidentiality  
-- Only your master key can decrypt data  
+1. Download ciphertext  
+2. Restore master key locally  
+3. Decrypt using `crypto.subtle.decrypt`  
+4. Reconstruct original file  
 
 ---
 
-## Threat model
+### Security Properties
 
-This system is designed to protect your data against the following threats:
+- Each encryption uses a unique IV  
+- `AES-GCM` provides confidentiality and integrity  
+- Only your master key can decrypt your files  
+
+---
+
+## Threat Model
+
+This system is designed to protect against:
 
 - Unauthorized access to stored data on our servers  
 - Server breaches or database leaks  
 - Insider access to stored files  
-- Network interception during upload/download  
+- Network interception during upload and download  
 
 In all of these cases, attackers only gain access to encrypted data (ciphertext), not usable files.
 
 ---
 
-## What we do NOT protect against
+## What This Does NOT Protect Against
 
-End-to-end encryption does not protect against all threats.
+End-to-end encryption does not protect against all threats:
 
-- If your device is compromised (malware, spyware)  
-- If someone gains access to your unlocked device  
-- If your password or recovery key is exposed  
-- If you decrypt and export files outside the encrypted environment  
+- Compromised devices (malware, spyware)  
+- Access to an unlocked device  
+- Exposure of your password or recovery key  
+- Files that have been decrypted and exported  
 
 Security depends on keeping your device and credentials secure.
 
 ---
 
-## Password and recovery model
+## Password and Recovery Model
 
 - Your password is never stored  
-- We cannot reset your password  
-- Recovery requires your recovery key  
+- Your password is never transmitted  
+- We cannot reset your encryption  
+
+Recovery is only possible using your recovery key.
+
+Without your password or recovery key, your data cannot be decrypted.
 
 ---
 
-## Implementation details
+## Implementation Details
+
+Megatech Photos uses the browser's native cryptographic APIs:
 
 - `crypto.subtle.generateKey` for key generation  
 - `crypto.subtle.deriveKey` for PBKDF2  
-- `crypto.subtle.encrypt` / `crypto.subtle.decrypt`  
+- `crypto.subtle.encrypt` and `crypto.subtle.decrypt`  
 - `crypto.getRandomValues` for randomness  
+
+All keys, salts, and IVs are generated using secure random values.
 
 ---
 
-## Data ownership and guarantees
+## Data Ownership and Guarantees
 
 - Only you can decrypt your files  
 - We store only encrypted data  
@@ -148,11 +190,13 @@ If Megatech Photos shuts down, your encrypted files remain decryptable using you
 
 ---
 
-## In short
+## In Short
 
-- Client-side encryption using `AES-256-GCM`  
-- Password-based key derivation using `PBKDF2`  
-- Master key encrypts all files  
+- Files are encrypted locally using `AES-256-GCM`  
+- Your password derives a key using `PBKDF2`  
+- Your master key encrypts all files  
 - Only encrypted data is stored  
+- Only your device can decrypt your data  
 
 **Only you can see your files.**
+```
